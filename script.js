@@ -1,5 +1,5 @@
 /* ==========================================================================
-   QUIZ GAME ENGINE
+   QUIZ GAME ENGINE - MULTI-CATEGORY SUPPORT
    ========================================================================== */
 
 "use strict";
@@ -20,7 +20,7 @@ const CONFIG = {
 
 let gameState = {
   playerName: "Guest",
-  difficulty: "medium",
+  difficulty: "easy",
   currentQuestionIndex: 0,
   activeQuestions: [],
   score: 0,
@@ -39,6 +39,7 @@ let gameState = {
   settings: { sound: true, music: true, darkMode: false }
 };
 
+// Global pool where category files attach their arrays
 window.QuizQuestionPool = window.QuizQuestionPool || {};
 
 const DOM = {
@@ -133,31 +134,47 @@ class SoundEngine {
 }
 const soundManager = new SoundEngine();
 
+// Combine all questions from every connected category script
 function fetchAllAvailableQuestions() {
   let combined = [];
-  Object.keys(window.QuizQuestionPool).forEach(key => {
+  const keys = Object.keys(window.QuizQuestionPool);
+  
+  keys.forEach(key => {
     if (Array.isArray(window.QuizQuestionPool[key])) {
       combined.push(...window.QuizQuestionPool[key]);
     }
   });
-  return combined;
+
+  // Deduplicate array based on question text
+  const uniqueQuestions = Array.from(
+    new Map(combined.map(q => [q.question, q])).values()
+  );
+
+  return uniqueQuestions;
 }
 
 function prepareGameQuestions() {
-  let questionPool = fetchAllAvailableQuestions();
+  let pool = fetchAllAvailableQuestions();
 
-  if (questionPool.length === 0) {
-    alert("No question files loaded! Make sure gk.js is linked properly.");
+  if (pool.length === 0) {
+    alert("No questions found! Make sure category scripts like gk.js or science.js are loaded.");
     return;
   }
 
-  // Filter by difficulty if enough questions match
-  const filtered = questionPool.filter(
-    q => q.difficulty && q.difficulty.toLowerCase() === gameState.difficulty.toLowerCase()
-  );
-  if (filtered.length >= 5) questionPool = filtered;
+  // Filter pool by difficulty selected on Welcome Screen
+  if (gameState.difficulty) {
+    const filteredByDiff = pool.filter(
+      q => q.difficulty && q.difficulty.toLowerCase() === gameState.difficulty.toLowerCase()
+    );
+    
+    // Use filtered difficulty questions if available, otherwise fall back to full pool
+    if (filteredByDiff.length >= 5) {
+      pool = filteredByDiff;
+    }
+  }
 
-  const shuffled = shuffleArray([...questionPool]);
+  // Shuffle questions randomly
+  const shuffled = shuffleArray([...pool]);
   const count = Math.min(shuffled.length, CONFIG.TOTAL_QUESTIONS);
 
   gameState.activeQuestions = shuffled.slice(0, count).map(q => ({
